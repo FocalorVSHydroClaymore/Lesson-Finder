@@ -1,6 +1,6 @@
 // Sheet Configurations
-const KEC_SHEET_ID = "1Uj77LX3qwVM2jtZEVe3hJt-mjhSvvDX1EWo3-cjKbZI";
-const INTERAC_SHEET_ID = "1qd8ivmSZ_FlepT5woZTTwzSvB_0PTfb0gh4ozWOQu10";
+const KEC_SHEET_ID = "16BznwGMZqhWqFIGWIJ1K3DhDcCJr4738byh9zcrhuK8";
+const INTERAC_SHEET_ID = "1WOB0bKFoTlG42vCHmhrcwrCSWSpjD-59dfm3-axKEbs";
 
 // Dynamically generate current tab name (e.g., "SEPTEMBER 2026")
 function getCurrentTabName() {
