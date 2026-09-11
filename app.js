@@ -1,7 +1,7 @@
 // Sheet Configurations
 const KEC_SHEET_ID = "16BznwGMZqhWqFIGWIJ1K3DhDcCJr4738byh9zcrhuK8";
 const INTERAC_SHEET_ID = "1WOB0bKFoTlG42vCHmhrcwrCSWSpjD-59dfm3-axKEbs";
-const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxOCKIEEgZOtlkmqF2GTBdHB4v4XbRxxs8jWRBS91_8VfkyzDcHloUmpOan8ieuVmCQ/exec";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz879Cb75d6O9HcptFBiIUixB5W6LDgQKbHHY7baSnuqm17Ga_AlCstkDsOCDuV4SPZ/exec";
 
 // Dynamically generate current tab name (e.g., "SEPTEMBER 2026")
 function getCurrentTabName() {
@@ -135,32 +135,31 @@ async function acceptLesson(sheetType, rowIndex) {
     return;
   }
 
+  const payload = {
+    sheetType: sheetType,
+    rowIndex: parseInt(rowIndex),
+    teacherName: teacherName.trim()
+  };
+
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors',
+      mode: 'no-cors', // Bypasses browser CORS restrictions
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8',
       },
-      body: JSON.stringify({
-        sheetType,
-        rowIndex,
-        teacherName: teacherName.trim(),
-      }),
+      body: JSON.stringify(payload)
     });
 
-    alert(`Request submitted for ${teacherName}! Updating schedule...`);
+    alert(`Lesson accepted for ${teacherName}! Updating spreadsheet...`);
     
-    // Refresh card list after 2 seconds to reflect the update
+    // Refresh card display after 2.5 seconds to reflect sheet changes
     setTimeout(() => {
       loadAvailableLessons();
-    }, 2000);
+    }, 2500);
 
   } catch (error) {
     console.error("Error submitting request:", error);
     alert("Failed to update status. Please try again.");
   }
 }
-
-// Initial load on startup
-loadAvailableLessons();
