@@ -1,6 +1,7 @@
 // Sheet Configurations
 const KEC_SHEET_ID = "16BznwGMZqhWqFIGWIJ1K3DhDcCJr4738byh9zcrhuK8";
 const INTERAC_SHEET_ID = "1WOB0bKFoTlG42vCHmhrcwrCSWSpjD-59dfm3-axKEbs";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby2FJYZCsgf64UDsNQiLRwBmDtALA8HhYu5kXLe5wJl6vszSSacCsnpqZtQcfe3_aUq/exec"; // We will replace this in Step 2
 
 // Dynamically generate current tab name (e.g., "SEPTEMBER 2026")
 function getCurrentTabName() {
