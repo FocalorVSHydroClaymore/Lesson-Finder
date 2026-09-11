@@ -3,7 +3,6 @@ const KEC_SHEET_ID = "16BznwGMZqhWqFIGWIJ1K3DhDcCJr4738byh9zcrhuK8";
 const INTERAC_SHEET_ID = "1WOB0bKFoTlG42vCHmhrcwrCSWSpjD-59dfm3-axKEbs";
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz879Cb75d6O9HcptFBiIUixB5W6LDgQKbHHY7baSnuqm17Ga_AlCstkDsOCDuV4SPZ/exec";
 
-// Dynamically generate current tab name (e.g., "SEPTEMBER 2026")
 function getCurrentTabName() {
   const now = new Date();
   const monthNames = [
@@ -13,31 +12,27 @@ function getCurrentTabName() {
   return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
 }
 
-// Format today's date to match Column B (e.g., "September 11")
-function getTodayFormatted() {
-  const now = new Date();
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  return `${monthNames[now.getMonth()]} ${now.getDate()}`;
-}
-
-// Fetch CSV Data directly using Sheet ID & Tab Name
 async function fetchSheetData(sheetId, tabName) {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Network response was not ok");
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const csvText = await response.text();
     return parseCSV(csvText);
   } catch (error) {
-    console.error("Error fetching sheet:", error);
-    return [];
+    console.error(`Error fetching sheet tab (${tabName}):`, error);
+    try {
+      const fallbackUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+      const fallbackRes = await fetch(fallbackUrl);
+      const csvText = await fallbackRes.text();
+      return parseCSV(csvText);
+    } catch (e) {
+      console.error("Fallback fetch failed:", e);
+      return [];
+    }
   }
 }
 
-// Robust CSV parser handling quotes and embedded commas
 function parseCSV(text) {
   const lines = text.split(/\r?\n/);
   return lines.map(line => {
@@ -45,56 +40,53 @@ function parseCSV(text) {
   });
 }
 
-// Filter and display available LF lessons
+// Check if a cell specifically represents an "LF" status (exact word match)
+function isExactLF(statusValue) {
+  if (!statusValue) return false;
+  const cleanVal = statusValue.trim().toUpperCase();
+  // Matches "LF", "LF - NEED SUB", or standalone "LF" isolated by spaces/punctuation
+  return cleanVal === "LF" || /^LF\b/.test(cleanVal);
+}
+
 async function loadAvailableLessons() {
   const currentTab = getCurrentTabName();
-  const todayString = getTodayFormatted();
-  console.log(`Fetching lessons for tab: ${currentTab}`);
+  console.log(`Target Tab: ${currentTab}`);
 
   const kecData = await fetchSheetData(KEC_SHEET_ID, currentTab);
   const interacData = await fetchSheetData(INTERAC_SHEET_ID, currentTab);
 
   const availableLessons = [];
 
-  // Parse KEC (Col B=Date, Col C=Time, Col D=School, Col G=Teacher, Col H=Status)
+  // KEC Parsing (Column H = Index 7)
   kecData.forEach((row, rowIndex) => {
-    const date = row[1] || "";
-    const lessonTime = row[2] || "";
-    const school = row[3] || "";
-    const teacher = row[6] || "";
-    const status = row[7] || ""; // Column H
+    const statusCell = row[7] || "";
 
-    if (status.toUpperCase().includes("LF")) {
+    if (isExactLF(statusCell)) {
       availableLessons.push({
         type: "KEC",
-        rowIndex: rowIndex + 1, // 1-based index for Apps Script updates
-        date,
-        time: lessonTime,
-        school,
-        originalTeacher: teacher,
-        status
+        rowIndex: rowIndex + 1,
+        date: row[1] || "",
+        time: row[2] || "",
+        school: row[3] || "KEC",
+        originalTeacher: row[6] || "N/A",
+        status: statusCell
       });
     }
   });
 
-  // Parse Interac (Col B=Date, Col C=Access Time, Col D=Lesson Time, Col E=School, Col O=Teacher, Col P=Status)
+  // Interac Parsing (Column P = Index 15)
   interacData.forEach((row, rowIndex) => {
-    const date = row[1] || "";
-    const accessTime = row[2] || "";
-    const lessonTime = row[3] || "";
-    const school = row[4] || "";
-    const teacher = row[14] || "";
-    const status = row[15] || ""; // Column P
+    const statusCell = row[15] || "";
 
-    if (status.toUpperCase().includes("LF")) {
+    if (isExactLF(statusCell)) {
       availableLessons.push({
         type: "Interac",
         rowIndex: rowIndex + 1,
-        date,
-        time: `Access: ${accessTime} | Lesson: ${lessonTime}`,
-        school,
-        originalTeacher: teacher,
-        status
+        date: row[1] || "",
+        time: `Access: ${row[2] || ''} | Lesson: ${row[3] || ''}`,
+        school: row[4] || "Interac",
+        originalTeacher: row[14] || "N/A",
+        status: statusCell
       });
     }
   });
@@ -126,7 +118,6 @@ function renderCards(lessons) {
   });
 }
 
-// Action triggered when teacher clicks "Accept Lesson"
 async function acceptLesson(sheetType, rowIndex) {
   const teacherName = prompt("Please enter your name to accept this lesson:");
 
@@ -135,25 +126,22 @@ async function acceptLesson(sheetType, rowIndex) {
     return;
   }
 
-  const payload = {
-    sheetType: sheetType,
-    rowIndex: parseInt(rowIndex),
-    teacherName: teacherName.trim()
-  };
-
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors', // Bypasses browser CORS restrictions
+      mode: 'no-cors',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        sheetType,
+        rowIndex: parseInt(rowIndex),
+        teacherName: teacherName.trim(),
+      }),
     });
 
-    alert(`Lesson accepted for ${teacherName}! Updating spreadsheet...`);
+    alert(`Request submitted for ${teacherName}! Updating schedule...`);
     
-    // Refresh card display after 2.5 seconds to reflect sheet changes
     setTimeout(() => {
       loadAvailableLessons();
     }, 2500);
@@ -163,3 +151,5 @@ async function acceptLesson(sheetType, rowIndex) {
     alert("Failed to update status. Please try again.");
   }
 }
+
+loadAvailableLessons();
