@@ -126,30 +126,31 @@ async function acceptLesson(sheetType, rowIndex) {
     return;
   }
 
+  const payload = {
+    sheetType: sheetType,
+    rowIndex: Number(rowIndex),
+    teacherName: teacherName.trim()
+  };
+
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
+        'Content-Type': 'text/plain;charset=utf-8'
       },
-      body: JSON.stringify({
-        sheetType,
-        rowIndex: parseInt(rowIndex),
-        teacherName: teacherName.trim(),
-      }),
+      body: JSON.stringify(payload)
     });
 
-    alert(`Request submitted for ${teacherName}! Updating schedule...`);
+    alert(`Request submitted for ${teacherName}! Updating spreadsheet...`);
     
+    // Refresh card list after 3 seconds to reflect sheet changes
     setTimeout(() => {
       loadAvailableLessons();
-    }, 2500);
+    }, 3000);
 
   } catch (error) {
     console.error("Error submitting request:", error);
     alert("Failed to update status. Please try again.");
   }
 }
-
-loadAvailableLessons();
