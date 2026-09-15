@@ -20,82 +20,92 @@ async function fetchSheetData(sheetId, tabName) {
     const csvText = await response.text();
     return parseCSV(csvText);
   } catch (error) {
-    console.error(`Error fetching sheet tab (${tabName}):`, error);
+    console.warn(`Could not load tab (${tabName}), trying default tab...`, error);
     try {
       const fallbackUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
       const fallbackRes = await fetch(fallbackUrl);
       const csvText = await fallbackRes.text();
       return parseCSV(csvText);
     } catch (e) {
-      console.error("Fallback fetch failed:", e);
+      console.error("Failed to fetch sheet data:", e);
       return [];
     }
   }
 }
 
 function parseCSV(text) {
+  if (!text) return [];
   const lines = text.split(/\r?\n/);
   return lines.map(line => {
     return line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, '').trim());
   });
 }
 
-// Check if a cell specifically represents an "LF" status (exact word match)
 function isExactLF(statusValue) {
   if (!statusValue) return false;
-  const cleanVal = statusValue.trim().toUpperCase();
-  // Matches "LF", "LF - NEED SUB", or standalone "LF" isolated by spaces/punctuation
+  const cleanVal = String(statusValue).trim().toUpperCase();
   return cleanVal === "LF" || /^LF\b/.test(cleanVal);
 }
 
 async function loadAvailableLessons() {
+  const container = document.getElementById("lessons-container");
+  if (container) container.innerHTML = "<p>Loading active lessons...</p>";
+
   const currentTab = getCurrentTabName();
-  console.log(`Target Tab: ${currentTab}`);
-
-  const kecData = await fetchSheetData(KEC_SHEET_ID, currentTab);
-  const interacData = await fetchSheetData(INTERAC_SHEET_ID, currentTab);
-
   const availableLessons = [];
 
-  // KEC Parsing (Column H = Index 7)
-  kecData.forEach((row, rowIndex) => {
-    const statusCell = row[7] || "";
+  try {
+    const kecData = await fetchSheetData(KEC_SHEET_ID, currentTab);
+    const interacData = await fetchSheetData(INTERAC_SHEET_ID, currentTab);
 
-    if (isExactLF(statusCell)) {
-      availableLessons.push({
-        type: "KEC",
-        rowIndex: rowIndex + 1,
-        date: row[1] || "",
-        time: row[2] || "",
-        school: row[3] || "KEC",
-        originalTeacher: row[6] || "N/A",
-        status: statusCell
+    // KEC Parsing (Column H = Index 7)
+    if (Array.isArray(kecData)) {
+      kecData.forEach((row, rowIndex) => {
+        if (!row || row.length === 0) return;
+        const statusCell = row[7] || "";
+        if (isExactLF(statusCell)) {
+          availableLessons.push({
+            type: "KEC",
+            rowIndex: rowIndex + 1,
+            date: row[1] || "",
+            time: row[2] || "",
+            school: row[3] || "KEC",
+            originalTeacher: row[6] || "N/A",
+            status: statusCell
+          });
+        }
       });
     }
-  });
 
-  // Interac Parsing (Column P = Index 15)
-  interacData.forEach((row, rowIndex) => {
-    const statusCell = row[15] || "";
-
-    if (isExactLF(statusCell)) {
-      availableLessons.push({
-        type: "Interac",
-        rowIndex: rowIndex + 1,
-        date: row[1] || "",
-        time: `Access: ${row[2] || ''} | Lesson: ${row[3] || ''}`,
-        school: row[4] || "Interac",
-        originalTeacher: row[14] || "N/A",
-        status: statusCell
+    // Interac Parsing (Column P = Index 15)
+    if (Array.isArray(interacData)) {
+      interacData.forEach((row, rowIndex) => {
+        if (!row || row.length === 0) return;
+        const statusCell = row[15] || "";
+        if (isExactLF(statusCell)) {
+          availableLessons.push({
+            type: "Interac",
+            rowIndex: rowIndex + 1,
+            date: row[1] || "",
+            time: `Access: ${row[2] || ''} | Lesson: ${row[3] || ''}`,
+            school: row[4] || "Interac",
+            originalTeacher: row[14] || "N/A",
+            status: statusCell
+          });
+        }
       });
     }
-  });
 
-  renderCards(availableLessons);
+    renderCards(availableLessons);
+  } catch (err) {
+    console.error("Error in loadAvailableLessons:", err);
+    if (container) container.innerHTML = "<p>Error loading lessons. Please refresh.</p>";
+  }
 }
 
 function renderCards(lessons) {
   const container = document.getElementById("lessons-container");
+  if (!container) return;
   container.innerHTML = "";
 
   if (lessons.length === 0) {
@@ -144,13 +154,14 @@ async function acceptLesson(sheetType, rowIndex) {
 
     alert(`Request submitted for ${teacherName}! Updating spreadsheet...`);
     
-    // Refresh card list after 3 seconds to reflect sheet changes
     setTimeout(() => {
       loadAvailableLessons();
-    }, 3000);
+    }, 2500);
 
   } catch (error) {
     console.error("Error submitting request:", error);
     alert("Failed to update status. Please try again.");
   }
 }
+
+loadAvailableLessons();
